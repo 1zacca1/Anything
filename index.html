@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Renewly – Private Subscription Tracker</title>
+  <meta name="description" content="See what your subscriptions really cost and when they renew. Free, private, no sign-up: your data never leaves your browser.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f46e5'/><path d='M9 16a7 7 0 0 1 12-5M23 16a7 7 0 0 1-12 5' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap bar">
+      <div class="brand">
+        <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M9 16a7 7 0 0 1 12-5M23 16a7 7 0 0 1-12 5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+        <span>Renewly</span>
+      </div>
+      <div class="bar-actions">
+        <select id="currency" aria-label="Currency"></select>
+        <button class="btn ghost" id="menuBtn" aria-haspopup="true">Data ▾</button>
+        <div class="menu" id="menu" hidden>
+          <button data-act="csv">Export CSV</button>
+          <button data-act="json">Backup (JSON)</button>
+          <button data-act="import">Restore backup…</button>
+          <button data-act="clear" class="danger">Delete everything</button>
+        </div>
+        <input type="file" id="importFile" accept="application/json" hidden>
+        <button class="btn primary" id="addBtn">+ Add subscription</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="stats" aria-label="Summary">
+      <div class="card stat"><span class="label">Per month</span><strong id="statMonth">–</strong></div>
+      <div class="card stat"><span class="label">Per year</span><strong id="statYear">–</strong></div>
+      <div class="card stat"><span class="label">Active</span><strong id="statCount">0</strong></div>
+      <div class="card stat"><span class="label">Next renewal</span><strong id="statNext">–</strong><small id="statNextSub"></small></div>
+    </section>
+
+    <div class="grid">
+      <section class="card list-card">
+        <div class="toolbar">
+          <input type="search" id="search" placeholder="Search subscriptions…" aria-label="Search">
+          <select id="filterCat" aria-label="Filter by category"></select>
+          <select id="sort" aria-label="Sort">
+            <option value="renewal">Soonest renewal</option>
+            <option value="cost-desc">Most expensive</option>
+            <option value="cost-asc">Cheapest</option>
+            <option value="name">Name A–Z</option>
+          </select>
+        </div>
+        <ul id="list" class="list"></ul>
+        <div id="empty" class="empty" hidden>
+          <h2>Nothing tracked yet</h2>
+          <p>Add your first subscription to see your real monthly cost and never miss a renewal.</p>
+          <div class="row">
+            <button class="btn primary" id="emptyAdd">+ Add subscription</button>
+            <button class="btn" id="demoBtn">Load examples</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="card">
+          <h2>Coming up · 30 days</h2>
+          <ul id="upcoming" class="upcoming"></ul>
+        </section>
+        <section class="card">
+          <h2>By category</h2>
+          <div id="breakdown"></div>
+        </section>
+        <p class="privacy">🔒 Stored only in this browser. No account, no tracking, no server.</p>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="dlg">
+    <form id="form" method="dialog" autocomplete="off">
+      <h2 id="dlgTitle">Add subscription</h2>
+      <label>Name
+        <input name="name" required maxlength="60" placeholder="Netflix">
+      </label>
+      <div class="two">
+        <label>Price
+          <input name="price" type="number" min="0" step="0.01" required placeholder="9.99" inputmode="decimal">
+        </label>
+        <label>Billed
+          <select name="cycle">
+            <option value="weekly">Weekly</option>
+            <option value="monthly" selected>Monthly</option>
+            <option value="quarterly">Every 3 months</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </label>
+      </div>
+      <div class="two">
+        <label>Next renewal
+          <input name="next" type="date" required>
+        </label>
+        <label>Category
+          <select name="category"></select>
+        </label>
+      </div>
+      <label>Notes <span class="opt">(optional)</span>
+        <input name="notes" maxlength="120" placeholder="Family plan, shared with Sam…">
+      </label>
+      <label class="check"><input type="checkbox" name="paused"> Paused / cancelled (exclude from totals)</label>
+      <div class="dlg-actions">
+        <button type="button" class="btn danger-text" id="deleteBtn" hidden>Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="cancelBtn">Cancel</button>
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
