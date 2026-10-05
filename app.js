@@ -174,7 +174,24 @@ document.addEventListener('click', () => (menu.hidden = true));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') menu.hidden = true; });
 menu.addEventListener('click', (e) => {
   const act = e.target.dataset.act; if (!act) return;
-  if (act === 'csv') {
+  if (act === 'ics') {
+    const active = state.subs.filter((s) => !s.paused);
+    if (!active.length) return toast('Nothing to add yet');
+    const ymd = (d) => iso(d).replace(/-/g, '');
+    const txt = (v) => String(v).replace(/[\\;,]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
+    const rule = { weekly: 'FREQ=WEEKLY', monthly: 'FREQ=MONTHLY', quarterly: 'FREQ=MONTHLY;INTERVAL=3', yearly: 'FREQ=YEARLY' };
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Renewly//EN', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Subscription renewals'];
+    active.forEach((s) => {
+      const d = nextRenewal(s), end = new Date(d); end.setDate(end.getDate() + 1);
+      lines.push('BEGIN:VEVENT', `UID:${s.id}@renewly`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(d)}`, `DTEND;VALUE=DATE:${ymd(end)}`, `RRULE:${rule[s.cycle]}`,
+        `SUMMARY:${txt(`${s.name} renews (${money(s.price)})`)}`, `DESCRIPTION:${txt(`${s.name}: ${money(s.price)} every ${CYCLE_LABEL[s.cycle]}.${s.notes ? ' ' + s.notes : ''}`)}`,
+        'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${txt(s.name + ' renews in 3 days')}`, 'TRIGGER:-P3D', 'END:VALARM', 'END:VEVENT');
+    });
+    lines.push('END:VCALENDAR');
+    download('renewly-renewals.ics', lines.join('\r\n') + '\r\n', 'text/calendar');
+    toast('Open the file to add reminders (3 days before each renewal)');
+  } else if (act === 'csv') {
     const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
     const lines = [['Name', 'Price', 'Currency', 'Billing', 'Monthly cost', 'Next renewal', 'Category', 'Status', 'Notes'].join(',')].concat(
       state.subs.map((s) => [q(s.name), s.price, state.currency, s.cycle, monthly(s).toFixed(2), iso(nextRenewal(s)), q(s.category), s.paused ? 'paused' : 'active', q(s.notes || '')].join(',')));
