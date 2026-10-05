@@ -1,7 +1,7 @@
 'use strict';
 const KEY = 'renewly.v1';
 const CATS = ['Entertainment', 'Music', 'Software', 'Cloud & Storage', 'News & Reading', 'Health & Fitness', 'Shopping', 'Utilities', 'Other'];
-const COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#10b981', '#ef4444', '#0ea5e9', '#64748b'];
+const COLORS = ['#e4572e', '#d99a1d', '#3d7a5f', '#2f5d8a', '#8a4f7d', '#b5651d', '#6b8f23', '#c2415b', '#8a857a'];
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'NOK', 'SEK', 'DKK', 'CAD', 'AUD', 'CHF', 'JPY', 'INR', 'BRL'];
 const PER_MONTH = { weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
 const CYCLE_LABEL = { weekly: 'week', monthly: 'month', quarterly: '3 months', yearly: 'year' };
@@ -86,7 +86,7 @@ function render() {
   const upcoming = active.map((s) => ({ s, d: nextRenewal(s) })).sort((a, b) => a.d - b.d);
   if (upcoming.length) {
     $('#statNext').textContent = relative(upcoming[0].d);
-    $('#statNextSub').textContent = `${upcoming[0].s.name} · ${money(upcoming[0].s.price)}`;
+    $('#statNextSub').textContent = `${upcoming[0].s.name}, ${money(upcoming[0].s.price)}`;
   } else { $('#statNext').textContent = '–'; $('#statNextSub').textContent = ''; }
 
   // list
@@ -96,23 +96,24 @@ function render() {
   $('#list').innerHTML = rows.map((s) => {
     const d = nextRenewal(s), n = daysUntil(d);
     const soon = !s.paused && n <= 7;
+    const when = s.paused ? 'Paused' : relative(d);
     return `<li class="item ${s.paused ? 'paused' : ''}" tabindex="0" data-id="${s.id}" role="button" aria-label="Edit ${esc(s.name)}">
-      <div class="avatar" style="background:${color(s.category)}">${esc(s.name.trim()[0] || '?').toUpperCase()}</div>
-      <div><div class="name">${esc(s.name)}${s.paused ? '<span class="badge">Paused</span>' : soon ? `<span class="badge soon">${relative(d)}</span>` : ''}</div>
-        <div class="meta">${esc(s.category)} · renews ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}${s.notes ? ' · ' + esc(s.notes) : ''}</div></div>
-      <div class="price">${money(s.price)}<small>/ ${CYCLE_LABEL[s.cycle]}${s.cycle !== 'monthly' ? ` · ${money(monthly(s))}/mo` : ''}</small></div></li>`;
+      <div><div class="name">${esc(s.name)}</div>
+        <div class="meta"><span class="dot" style="background:${color(s.category)}"></span>${esc(s.category)}${s.notes ? ' · ' + esc(s.notes) : ''}</div></div>
+      <div class="when ${soon ? 'soon' : ''}">${when}</div>
+      <div class="amt">${money(monthly(s))}<small>${s.cycle !== 'monthly' ? `${money(s.price)} / ${CYCLE_LABEL[s.cycle]}` : ''}</small></div></li>`;
   }).join('');
-  if (state.subs.length && !rows.length) $('#list').innerHTML = '<li class="none" style="padding:16px 6px">No matches.</li>';
+  if (state.subs.length && !rows.length) $('#list').innerHTML = '<li class="none">No matches.</li>';
 
   // upcoming
   const soon = upcoming.filter((u) => daysUntil(u.d) <= 30);
-  $('#upcoming').innerHTML = soon.length ? soon.map((u) => `<li><span>${esc(u.s.name)}<br><span class="when">${relative(u.d)}</span></span><strong>${money(u.s.price)}</strong></li>`).join('') : '<li class="none">No renewals in the next 30 days.</li>';
+  $('#upcoming').innerHTML = soon.length ? soon.map((u) => `<li><span><span class="day">${u.d.getDate()}</span><span class="mon">${u.d.toLocaleDateString(undefined, { month: 'short' })}</span></span><span>${esc(u.s.name)}</span><span>${money(u.s.price)}</span></li>`).join('') : '<li class="none" style="grid-template-columns:1fr">Nothing due in the next 30 days.</li>';
 
   // breakdown
   const totals = {};
   active.forEach((s) => (totals[s.category] = (totals[s.category] || 0) + monthly(s)));
   const ent = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-  $('#breakdown').innerHTML = ent.length ? ent.map(([c, v]) => `<div class="bar-row"><div class="top"><span>${esc(c)}</span><span>${money(v)}/mo</span></div><div class="track"><div class="fill" style="width:${(v / m) * 100}%;background:${color(c)}"></div></div></div>`).join('') : '<p class="none">Add a subscription to see where your money goes.</p>';
+  $('#breakdown').innerHTML = ent.length ? `<div class="stack">${ent.map(([c, v]) => `<i title="${esc(c)}" style="flex:${v};background:${color(c)}"></i>`).join('')}</div><ul class="legend">${ent.map(([c, v]) => `<li><span><span class="dot" style="background:${color(c)}"></span>${esc(c)}</span><span>${money(v)}</span></li>`).join('')}</ul>` : '<p class="none" style="padding:0">Add a subscription to see the split.</p>';
 
   // filter options
   const sel = $('#filterCat'), cur = sel.value;
