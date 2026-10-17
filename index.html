@@ -12,7 +12,7 @@
   <header class="wrap top">
     <a class="brand" href="./">renewly<span>.</span></a>
     <nav class="nav">
-      <select id="currency" aria-label="Currency"></select>
+      <label class="show-in">Totals in <select id="currency" aria-label="Show totals in"></select></label>
       <span class="dropdown">
         <button class="link" id="menuBtn" aria-haspopup="true">Export &amp; backup</button>
         <div class="menu" id="menu" hidden>
@@ -37,6 +37,7 @@
         <div><dt>Active</dt><dd id="statCount">0</dd></div>
         <div><dt>Next charge</dt><dd id="statNext">–</dd><small id="statNextSub"></small></div>
       </dl>
+      <p class="rate-note" id="rateNote" hidden></p>
     </section>
 
     <div class="cols">
@@ -72,7 +73,7 @@
           <h2>Where it goes</h2>
           <div id="breakdown"></div>
         </section>
-        <p class="note">Everything is saved in this browser only. No account, no server, no tracking.</p>
+        <p class="note">Your list is saved in this browser only. No account, no tracking. The only outside request is for public exchange rates, and it contains none of your data.</p>
       </aside>
     </div>
   </main>
@@ -83,9 +84,12 @@
       <label>Name
         <input name="name" required maxlength="60" placeholder="e.g. Netflix">
       </label>
-      <div class="two">
+      <div class="three">
         <label>Price
           <input name="price" type="number" min="0" step="0.01" required placeholder="0.00" inputmode="decimal">
+        </label>
+        <label>Currency
+          <select name="currency"></select>
         </label>
         <label>Billed
           <select name="cycle">
