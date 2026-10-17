@@ -36,7 +36,9 @@ button,select,input{font:inherit;color:inherit}
 select,input:not([type=checkbox]){background:transparent;border:0;border-bottom:1px solid var(--rule);padding:8px 2px;border-radius:0;width:100%}
 select{cursor:pointer}
 input:focus,select:focus{outline:0;border-bottom-color:var(--text)}
-.nav select{width:auto;border:0;color:var(--muted)}
+.nav select{width:auto;border:0;color:var(--text);margin-left:2px}
+.show-in{color:var(--muted);font-size:14px;display:flex;align-items:center;margin:0;text-transform:none;letter-spacing:0}
+.rate-note{margin:20px 0 0;color:var(--muted);font-size:13px}
 
 .hero{padding:36px 0 40px;border-bottom:1px solid var(--text)}
 .eyebrow{margin:0 0 4px;color:var(--muted);font-size:13px;letter-spacing:.08em;text-transform:uppercase}
@@ -89,6 +91,7 @@ dialog h2{font:400 28px var(--serif);text-transform:none;letter-spacing:-.01em;c
 form label{display:block;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
 form label input,form label select{margin-top:2px;font-size:16px;text-transform:none;letter-spacing:0;color:var(--text)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.three{display:grid;grid-template-columns:1.3fr 1fr 1.2fr;gap:20px}
 label.check{display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)}
 .dlg-actions{display:flex;gap:10px;align-items:center;margin-top:12px}
 .spacer{flex:1}
@@ -109,4 +112,6 @@ label.check{display:flex;gap:8px;align-items:center;text-transform:none;letter-s
   .toolbar{grid-template-columns:1fr 1fr}
   .toolbar input{grid-column:1/-1}
   .two{grid-template-columns:1fr}
+  .three{grid-template-columns:1fr 1fr}
+  .three label:last-child{grid-column:1/-1}
 }

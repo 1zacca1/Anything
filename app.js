@@ -13,7 +13,10 @@ let editingId = null;
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
-    if (s && Array.isArray(s.subs)) return s;
+    if (s && Array.isArray(s.subs)) {
+      s.subs.forEach((x) => { if (!CURRENCIES.includes(x.currency)) x.currency = s.currency; });
+      return s;
+    }
   } catch (e) {}
   return { currency: guessCurrency(), subs: [] };
 }
@@ -30,8 +33,35 @@ function guessCurrency() {
   return 'USD';
 }
 
-const money = (n) => new Intl.NumberFormat(undefined, { style: 'currency', currency: state.currency, maximumFractionDigits: n >= 100 ? 0 : 2 }).format(n);
-const monthly = (s) => s.price * PER_MONTH[s.cycle];
+const money = (n, cur = state.currency) => new Intl.NumberFormat(undefined, { style: 'currency', currency: cur, maximumFractionDigits: n >= 100 ? 0 : 2 }).format(n);
+
+// Exchange rates (ECB via frankfurter.dev, EUR-based). Only fetched when a subscription uses a
+// currency other than the display currency; no subscription data is sent.
+const RATES_KEY = 'renewly.rates.v1', RATES_TTL = 12 * 36e5;
+let rates = (() => { try { return JSON.parse(localStorage.getItem(RATES_KEY)); } catch (e) { return null; } })();
+let ratesFailed = false;
+function convert(amount, from, to = state.currency) {
+  if (from === to) return amount;
+  const r = rates && rates.rates;
+  if (!r || !(from === 'EUR' || r[from]) || !(to === 'EUR' || r[to])) return null;
+  return (amount / (from === 'EUR' ? 1 : r[from])) * (to === 'EUR' ? 1 : r[to]);
+}
+function needsRates() { return state.subs.some((s) => s.currency !== state.currency); }
+async function ensureRates() {
+  if (!needsRates() || (rates && Date.now() - rates.at < RATES_TTL)) return;
+  try {
+    const res = await fetch('https://api.frankfurter.dev/v1/latest?base=EUR');
+    const d = await res.json();
+    if (!d || !d.rates) throw 0;
+    rates = { at: Date.now(), date: d.date, rates: d.rates };
+    ratesFailed = false;
+    try { localStorage.setItem(RATES_KEY, JSON.stringify(rates)); } catch (e) {}
+  } catch (e) { ratesFailed = true; }
+  render();
+}
+// monthly cost of one subscription in the display currency (0 if no rate is available yet)
+const monthly = (s) => (convert(s.price, s.currency) ?? 0) * PER_MONTH[s.cycle];
+const unconverted = () => state.subs.filter((s) => !s.paused && convert(1, s.currency) === null);
 
 function parseDate(str) { const [y, m, d] = str.split('-').map(Number); return new Date(y, m - 1, d); }
 function iso(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
@@ -80,14 +110,24 @@ function visible() {
 function render() {
   const active = state.subs.filter((s) => !s.paused);
   const m = active.reduce((t, s) => t + monthly(s), 0);
+  const miss = unconverted();
   $('#statMonth').textContent = money(m);
   $('#statYear').textContent = money(m * 12);
   $('#statCount').textContent = active.length;
   const upcoming = active.map((s) => ({ s, d: nextRenewal(s) })).sort((a, b) => a.d - b.d);
   if (upcoming.length) {
     $('#statNext').textContent = relative(upcoming[0].d);
-    $('#statNextSub').textContent = `${upcoming[0].s.name}, ${money(upcoming[0].s.price)}`;
+    $('#statNextSub').textContent = `${upcoming[0].s.name}, ${money(upcoming[0].s.price, upcoming[0].s.currency)}`;
   } else { $('#statNext').textContent = '–'; $('#statNextSub').textContent = ''; }
+
+  const note = $('#rateNote');
+  if (!needsRates()) note.hidden = true;
+  else {
+    note.hidden = false;
+    note.textContent = miss.length
+      ? (ratesFailed ? `Couldn't load exchange rates, so ${miss.map((s) => s.name).join(', ')} ${miss.length > 1 ? 'are' : 'is'} left out of the totals. Check your connection and reload.` : 'Loading exchange rates…')
+      : `Totals in ${state.currency}. Other currencies converted at European Central Bank rates from ${rates.date}.`;
+  }
 
   // list
   const rows = visible();
@@ -101,13 +141,13 @@ function render() {
       <div><div class="name">${esc(s.name)}</div>
         <div class="meta"><span class="dot" style="background:${color(s.category)}"></span>${esc(s.category)}${s.notes ? ' · ' + esc(s.notes) : ''}</div></div>
       <div class="when ${soon ? 'soon' : ''}">${when}</div>
-      <div class="amt">${money(monthly(s))}<small>${s.cycle !== 'monthly' ? `${money(s.price)} / ${CYCLE_LABEL[s.cycle]}` : ''}</small></div></li>`;
+      <div class="amt">${convert(1, s.currency) === null ? '–' : money(monthly(s))}<small>${s.cycle !== 'monthly' || s.currency !== state.currency ? `${money(s.price, s.currency)} / ${CYCLE_LABEL[s.cycle]}` : ''}</small></div></li>`;
   }).join('');
   if (state.subs.length && !rows.length) $('#list').innerHTML = '<li class="none">No matches.</li>';
 
   // upcoming
   const soon = upcoming.filter((u) => daysUntil(u.d) <= 30);
-  $('#upcoming').innerHTML = soon.length ? soon.map((u) => `<li><span><span class="day">${u.d.getDate()}</span><span class="mon">${u.d.toLocaleDateString(undefined, { month: 'short' })}</span></span><span>${esc(u.s.name)}</span><span>${money(u.s.price)}</span></li>`).join('') : '<li class="none" style="grid-template-columns:1fr">Nothing due in the next 30 days.</li>';
+  $('#upcoming').innerHTML = soon.length ? soon.map((u) => `<li><span><span class="day">${u.d.getDate()}</span><span class="mon">${u.d.toLocaleDateString(undefined, { month: 'short' })}</span></span><span>${esc(u.s.name)}</span><span>${money(u.s.price, u.s.currency)}</span></li>`).join('') : '<li class="none" style="grid-template-columns:1fr">Nothing due in the next 30 days.</li>';
 
   // breakdown
   const totals = {};
@@ -130,9 +170,9 @@ function openDialog(id) {
   $('#dlgTitle').textContent = s ? 'Edit subscription' : 'Add subscription';
   $('#deleteBtn').hidden = !s;
   if (s) {
-    form.name.value = s.name; form.price.value = s.price; form.cycle.value = s.cycle;
+    form.name.value = s.name; form.price.value = s.price; form.currency.value = s.currency; form.cycle.value = s.cycle;
     form.next.value = iso(nextRenewal(s)); form.category.value = s.category; form.notes.value = s.notes || ''; form.paused.checked = !!s.paused;
-  } else form.next.value = iso(advance(today(), 'monthly'));
+  } else { form.next.value = iso(advance(today(), 'monthly')); form.currency.value = state.lastCurrency || state.currency; }
   dlg.showModal();
   form.name.focus();
 }
@@ -140,10 +180,11 @@ form.addEventListener('submit', (e) => {
   e.preventDefault();
   const price = parseFloat(form.price.value);
   if (!form.name.value.trim() || !(price >= 0)) return;
-  const data = { name: form.name.value.trim(), price, cycle: form.cycle.value, next: form.next.value, category: form.category.value, notes: form.notes.value.trim(), paused: form.paused.checked };
+  const data = { name: form.name.value.trim(), price, currency: form.currency.value, cycle: form.cycle.value, next: form.next.value, category: form.category.value, notes: form.notes.value.trim(), paused: form.paused.checked };
   if (editingId) Object.assign(state.subs.find((x) => x.id === editingId), data);
   else state.subs.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()), ...data });
-  save(); dlg.close(); render(); toast(editingId ? 'Saved' : 'Added');
+  state.lastCurrency = data.currency;
+  save(); dlg.close(); render(); ensureRates(); toast(editingId ? 'Saved' : 'Added');
 });
 $('#cancelBtn').onclick = () => dlg.close();
 $('#deleteBtn').onclick = () => {
@@ -158,12 +199,12 @@ $('#list').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key =
 ['#search', '#filterCat', '#sort'].forEach((s) => $(s).addEventListener('input', render));
 $('#addBtn').onclick = () => openDialog();
 $('#emptyAdd').onclick = () => openDialog();
-$('#currency').addEventListener('change', (e) => { state.currency = e.target.value; save(); render(); });
+$('#currency').addEventListener('change', (e) => { state.currency = e.target.value; save(); render(); ensureRates(); });
 
 $('#demoBtn').onclick = () => {
   const t = today(), at = (n) => iso(new Date(t.getFullYear(), t.getMonth(), t.getDate() + n));
   const demo = [['Netflix', 15.99, 'monthly', 3, 'Entertainment'], ['Spotify', 11.99, 'monthly', 12, 'Music'], ['iCloud+', 2.99, 'monthly', 20, 'Cloud & Storage'], ['Adobe Creative Cloud', 59.99, 'monthly', 6, 'Software'], ['Gym', 39, 'monthly', 25, 'Health & Fitness'], ['Amazon Prime', 139, 'yearly', 90, 'Shopping']];
-  demo.forEach(([name, price, cycle, n, category]) => state.subs.push({ id: crypto.randomUUID(), name, price, cycle, next: at(n), category, notes: '', paused: false }));
+  demo.forEach(([name, price, cycle, n, category]) => state.subs.push({ id: crypto.randomUUID(), name, price, currency: state.currency, cycle, next: at(n), category, notes: '', paused: false }));
   save(); render();
 };
 
@@ -185,7 +226,7 @@ menu.addEventListener('click', (e) => {
     active.forEach((s) => {
       const d = nextRenewal(s), end = new Date(d); end.setDate(end.getDate() + 1);
       lines.push('BEGIN:VEVENT', `UID:${s.id}@renewly`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(d)}`, `DTEND;VALUE=DATE:${ymd(end)}`, `RRULE:${rule[s.cycle]}`,
-        `SUMMARY:${txt(`${s.name} renews (${money(s.price)})`)}`, `DESCRIPTION:${txt(`${s.name}: ${money(s.price)} every ${CYCLE_LABEL[s.cycle]}.${s.notes ? ' ' + s.notes : ''}`)}`,
+        `SUMMARY:${txt(`${s.name} renews (${money(s.price, s.currency)})`)}`, `DESCRIPTION:${txt(`${s.name}: ${money(s.price, s.currency)} every ${CYCLE_LABEL[s.cycle]}.${s.notes ? ' ' + s.notes : ''}`)}`,
         'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${txt(s.name + ' renews in 3 days')}`, 'TRIGGER:-P3D', 'END:VALARM', 'END:VEVENT');
     });
     lines.push('END:VCALENDAR');
@@ -193,8 +234,8 @@ menu.addEventListener('click', (e) => {
     toast('Open the file to add reminders (3 days before each renewal)');
   } else if (act === 'csv') {
     const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
-    const lines = [['Name', 'Price', 'Currency', 'Billing', 'Monthly cost', 'Next renewal', 'Category', 'Status', 'Notes'].join(',')].concat(
-      state.subs.map((s) => [q(s.name), s.price, state.currency, s.cycle, monthly(s).toFixed(2), iso(nextRenewal(s)), q(s.category), s.paused ? 'paused' : 'active', q(s.notes || '')].join(',')));
+    const lines = [['Name', 'Price', 'Currency', 'Billing', `Monthly cost (${state.currency})`, 'Next renewal', 'Category', 'Status', 'Notes'].join(',')].concat(
+      state.subs.map((s) => [q(s.name), s.price, s.currency, s.cycle, monthly(s).toFixed(2), iso(nextRenewal(s)), q(s.category), s.paused ? 'paused' : 'active', q(s.notes || '')].join(',')));
     download('subscriptions.csv', lines.join('\n'), 'text/csv');
   } else if (act === 'json') download('renewly-backup.json', JSON.stringify(state, null, 2), 'application/json');
   else if (act === 'import') $('#importFile').click();
@@ -206,9 +247,9 @@ $('#importFile').addEventListener('change', async (e) => {
     const d = JSON.parse(await f.text());
     if (!Array.isArray(d.subs)) throw 0;
     const subs = d.subs.filter((s) => s && typeof s.name === 'string' && isFinite(s.price) && PER_MONTH[s.cycle] && /^\d{4}-\d\d-\d\d$/.test(s.next))
-      .map((s) => ({ id: String(s.id || crypto.randomUUID()), name: s.name.slice(0, 60), price: +s.price, cycle: s.cycle, next: s.next, category: CATS.includes(s.category) ? s.category : 'Other', notes: String(s.notes || '').slice(0, 120), paused: !!s.paused }));
+      .map((s) => ({ id: String(s.id || crypto.randomUUID()), name: s.name.slice(0, 60), price: +s.price, currency: CURRENCIES.includes(s.currency) ? s.currency : (CURRENCIES.includes(d.currency) ? d.currency : state.currency), cycle: s.cycle, next: s.next, category: CATS.includes(s.category) ? s.category : 'Other', notes: String(s.notes || '').slice(0, 120), paused: !!s.paused }));
     state = { currency: CURRENCIES.includes(d.currency) ? d.currency : state.currency, subs };
-    save(); initCurrency(); render(); toast(`Restored ${subs.length} subscriptions`);
+    save(); initCurrency(); render(); ensureRates(); toast(`Restored ${subs.length} subscriptions`);
   } catch (err) { toast('That file is not a valid backup'); }
 });
 function download(name, text, type) {
@@ -220,6 +261,8 @@ let tt;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 2200); }
 
 function initCurrency() { $('#currency').innerHTML = CURRENCIES.map((c) => `<option ${c === state.currency ? 'selected' : ''}>${c}</option>`).join(''); }
+form.currency.innerHTML = CURRENCIES.map((c) => `<option>${c}</option>`).join('');
 form.category.innerHTML = CATS.map((c) => `<option>${c}</option>`).join('');
 initCurrency();
 render();
+ensureRates();
