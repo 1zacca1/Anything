@@ -9,6 +9,8 @@
     --accent:#ff7a52;--ink:#ece8de;--on-ink:#141311;--soon:#ff7a52}
 }
 *{box-sizing:border-box}
+:root{color-scheme:light dark}
+option{background:var(--bg);color:var(--text)}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
 .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
 h1,h2{margin:0;font-weight:400}
